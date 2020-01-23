@@ -19,15 +19,16 @@ def mkdir(dir_path):
 def step1_split_bed_file_by_chromHMM_label(input_bed_fp, outdir, col_index=-1):
     mkdir(outdir)
     try:
-        fmt = "%s\t%d\t%d" + "".join(["\t%.4f" for item in range(15)])
+        fmt = "%s\t%d\t%d" + "".join(["\t%.4f" for item in range(15)]) + "\t%d"
         df = pd.read_csv(input_bed_fp, sep='\t', header=None).values
         for chrHMMlbl in chromHMM_labels:
-            df_lines = df[df[:, col_index] == chrHMMlbl, 0: col_index]
+            df_lines = df[df[:, col_index] == chrHMMlbl, ]
             output_fp = os.path.join(outdir, "%s.bed" % chrHMMlbl)
             np.savetxt(output_fp, df_lines[:], delimiter='\n', fmt=fmt)
             print("save %s sucessful" % chrHMMlbl)
     except Exception as e:
         print(e)
+
 def partition_CpG_pairs_dict_into_training_validation_and_testing_set(CpG_pair_withd_chrHMM, training_ratio):
     CpG_pair_withd_chrHMM = CpG_pair_withd_chrHMM[0]
 
@@ -72,7 +73,6 @@ def local_feature_keys(d, local_radius):
         ds = range(d - local_radius, d + local_radius + 1)
     return ds
 
-
 def calc_local_correlation(dataset, local_radius, target_feature_col = 5, NUM_MIN_SAMPLE = 5):
     dataset = dataset[0]
     COL_INDEX_IN_DF = target_feature_col - 3 - 1
@@ -89,17 +89,32 @@ def calc_local_correlation(dataset, local_radius, target_feature_col = 5, NUM_MI
                 corr, _ = pearsonr(vec_list[:, 0], vec_list[:, 1])
                 dataset[chrHMMlbl][d][CORR_NAME] = corr
             else:
-                dataset[chrHMMlbl][d][CORR_NAME] = -1
+                dataset[chrHMMlbl][d][CORR_NAME] = -2
     return [dataset]
+
+def merge_diff_chromHMM(dataset):
+    dataset = dataset[0]
+    new_dataset = {d: [] for d in distance_range}
+    for d in distance_range:
+        for chrHMMlbl in chromHMM_labels:
+            corr = dataset[chrHMMlbl][d][CORR_NAME]
+            if corr > -2:
+                feature_list = dataset[chrHMMlbl][d][FEATURE_NAME]
+                for feature in feature_list:
+                    new_dataset[d].append([feature, corr])
+    return new_dataset
 def step3_get_local_correlation_for_each_CpG_pair(training_set, testing_set, local_radius= 2):
     training_set = calc_local_correlation(training_set, local_radius)
+    training_set = merge_diff_chromHMM(training_set)
     testing_set = calc_local_correlation(testing_set, local_radius)
-    
+    testing_set = merge_diff_chromHMM(testing_set)
+    return training_set, testing_set
+
 if __name__ == "__main__":
 
     input_bed_fp = os.path.join(data_dir, "K-100bp-CpGd_HMM.bed")
     outdir = os.path.join(data_dir, "K-100bp-CpGd_split")
-    #step1_split_bed_file_by_chromHMM_label(input_bed_fp, outdir)
+    step1_split_bed_file_by_chromHMM_label(input_bed_fp, outdir)
 
-    training_set, testing_set = step2_construct_cpg_pairs_with_d_distance(outdir)
-    step3_get_local_correlation_for_each_CpG_pair(training_set, testing_set)
+    # training_set, testing_set = step2_construct_cpg_pairs_with_d_distance(outdir)
+    # training_set, testing_set = step3_get_local_correlation_for_each_CpG_pair(training_set, testing_set)
