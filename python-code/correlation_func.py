@@ -140,5 +140,5 @@ def call_for_correlation_analysis(CONFIG_FP):
     pool.map_async(wrapper_for_correlation_analysis, tups).get()
 
 if __name__ == "__main__":
-    config_fp = os.path.join(data_dir, "cgi_non_cgi.config")
+    config_fp = os.path.join(data_dir, "cgi_threshold.config")
     call_for_correlation_analysis(config_fp)
