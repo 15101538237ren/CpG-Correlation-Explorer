@@ -80,7 +80,54 @@ def plot_local_regression_and_RD(fig_format="png"):
                     ax.set_title(file_label, fontsize=14)
                 plt.savefig(fig_fp, dpi=300, bbox_inches='tight', pad_inches=0.1)
 
+def plot_local_regression_and_RD(max_d, fig_format="png"):
+    regions = ["Genomic_Regions", "ChromHMM", "Histone_Modification", "TFBS"]#
+    K_RD = [1]# , 0
+    N_COL = 5
+    cm = plt.get_cmap('gist_rainbow')
+    for km in K_RD:
+        for REGION in regions:
+            RD_DIRNAME= "K_RD" if km == 1 else "Methy_RD"
+            fig_dir = os.path.join(FIG_DIR, RD_DIRNAME)
+            mkdir(fig_dir)
+            out_rd_corr_dir = os.path.join(BASE_DIR, REGION, RD_DIRNAME)
+            file_paths = [os.path.join(out_rd_corr_dir, "%s.bed" % file_name) for file_name in FILE_ORDERED_NAMES[REGION]]
+            file_labels = FILE_LABELS[REGION]
+
+            fig_fp = os.path.join(fig_dir,  "%s.%s" % (REGION, fig_format))
+            N_FILES = len(file_labels)
+            N_ROW = int(math.ceil((N_FILES) / N_COL))
+            fig, axs = plt.subplots(N_ROW, N_COL, figsize=(N_COL * EACH_SUB_FIG_SIZE, N_ROW * EACH_SUB_FIG_SIZE))
+            for j in range(N_FILES):
+                row = j // N_COL
+                col = j % N_COL
+                if N_ROW == 1:
+                    ax = axs[col]
+                else:
+                    ax = axs[row][col]
+                file_path = file_paths[j]
+                RD_df = pd.read_csv(file_path, sep="\t", header=None).values
+                x = RD_df[:, 0]
+                y = RD_df[:, 1]
+
+                try:
+                    y2 = localreg(x, y, degree=2, kernel=tricube, width=100)
+                    if file_labels[j] == "Genome":
+                        ax.scatter(x, y, s=8, color="blue", label=file_labels[j])
+                        ax.plot(x, y2, "w-", linewidth=2)
+                    else:
+                        ax.scatter(x, y, s=8, color=cm(1. * j / N_FILES), label=file_labels[j])
+                        ax.plot(x, y2, "k-", linewidth=2)
+                except np.linalg.LinAlgError as e:
+                    sns.regplot(x=x, y=y, ax=ax, scatter_kws={'s':8, 'color': cm(1. * j / N_FILES)})#, line_kws ={'color':'black', "lw": 2}
+                ax.set_xticks(range(0, max_d + 1, 200))
+                ax.set_xlim(0, max_d)
+                ax.set_ylim(0, 1.0)
+                ax.set_title(file_labels[j], fontsize=18)
+            plt.savefig(fig_fp, dpi=300, bbox_inches='tight', pad_inches=0.1)
+
 if __name__ == "__main__":
     config_fp = os.path.join(data_dir, "cgi_non_cgi.config")
     partition_bed_by_region_labels_and_generate_config_file(config_fp)
     #plot_local_regression_and_RD()
+    plot_local_regression_and_RD(D_MAX)
