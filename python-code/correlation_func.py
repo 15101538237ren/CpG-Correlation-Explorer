@@ -65,8 +65,8 @@ def read_bed_file_and_store_pos_to_a_struct(bed_tsv_file_path, K_RD, only_within
                 dict_to_store_dnase_and_nucleo_val[chr_i][int(pos)] = [float(dnase_val), float(nucleo_val)]
             else:
                 chr_i, pos, val = item[0], item[1], item[val_col]
-
-            dict_to_store[chr_i][int(pos)] = val
+            if val!='.':
+                dict_to_store[chr_i][int(pos)] = val
         except Exception as e:
             pass
     if only_within == False:
@@ -204,8 +204,8 @@ def calc_C_d_by_pearson_correlation(CpG_Pairs_list, with_dnase_and_nucleo=False)
 
     for DISTANCE, CpG_pairs in CpG_Pairs_Dict.items():
         if len(CpG_pairs) > 5:
-                CpG_arr = np.array(CpG_pairs)
                 try:
+                    CpG_arr = np.array(CpG_pairs).astype(float)
                     r_d = np.corrcoef(CpG_arr[:, 0], CpG_arr[:, 1])[0][1]
                     if with_dnase_and_nucleo:
                         mean_dnase = np.mean(np.array(DNase_Pairs_Dict[DISTANCE]).astype(np.float))
@@ -214,7 +214,7 @@ def calc_C_d_by_pearson_correlation(CpG_Pairs_list, with_dnase_and_nucleo=False)
                     else:
                         RD_dict[DISTANCE] = r_d
                 except Exception as e:
-                    pass
+                    print(e)
     return [RD_dict] if RD_dict else []
 
 def write_RD_into(RD_dict, out_fp, with_dnase_and_nucleo=False):
@@ -440,5 +440,5 @@ def plot_local_regression_and_RD_separately(max_d, fig_format="png"):
 if __name__ == "__main__":
     config_fp = os.path.join(data_dir, "dnase_corr.config")
     # prepare_config_file(config_fp)
-    # call_for_correlation_analysis(config_fp)
+    call_for_correlation_analysis(config_fp)
     plot_local_regression_and_RD_separately(D_MAX, fig_format="svg")
