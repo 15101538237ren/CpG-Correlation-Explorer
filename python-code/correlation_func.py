@@ -16,7 +16,7 @@ FILE_ORDERED_NAMES = {
             "ChromHMM": ["1_Active_Promoter", "2_Weak_Promoter", "3_Poised_Promoter", "4_Strong_Enhancer", "5_Strong_Enhancer",
                          "6_Weak_Enhancer", "7_Weak_Enhancer", "8_Insulator", "9_Txn_Transition", "10_Txn_Elongation",
                          "11_Weak_Txn", "12_Repressed", "13_Heterochrom_lo", "14_Repetitive_CNV", "15_Repetitive_CNV"],
-            "Genomic_Regions": ["Promoter", "Enhancer", "CGI", "Exons", "Introns", "Intergenic", "LINE", "SINE", "LTR", "5UTR", "3UTR",],
+            "Genomic_Regions": ["Genome", "Promoter", "Enhancer", "CGI", "Exons", "Intergenic", "LINE", "SINE", "LTR", "5UTR", "3UTR","Introns"],#
             "Histone_Modification": ["H3k4me1Not3_no_k27me3_no_k27ac", "H3k4me1Not3_k27me3", "H3k4me1Not3_k27ac",
                                                     "H3k4me3Not1_no_k27me3_no_k27ac", "H3k4me3Not1_k27me3", "H3k4me3Not1_k27ac",
                                                     "H3K9Me3", "H3K36me3"],
@@ -24,7 +24,7 @@ FILE_ORDERED_NAMES = {
             }
 FILE_LABELS = {
             "ChromHMM": ChrmoHMM_LABELS,
-            "Genomic_Regions": ["Promoter", "Enhancer", "CGI", "Exons", "Introns", "Intergenic", "LINE", "SINE", "LTR", "5UTR", "3UTR"],
+            "Genomic_Regions": ["Genome", "Promoter", "Enhancer", "CGI", "Exons",  "Intergenic", "LINE", "SINE", "LTR", "5UTR", "3UTR","Introns"],
             "Histone_Modification": ["H3k4me1", "H3k4me1 + H3k27me3", "H3k4me1 + H3k27ac",
                                         "H3k4me3", "H3k4me3 + H3k27me3", "H3k4me3 + H3k27ac", "H3K9Me3", "H3K36me3"],
             "TFBS": ["DNase", "EZH2", "H2AZ", "TFBS"]
@@ -53,7 +53,7 @@ def read_bed_file_and_store_pos_to_a_struct(bed_tsv_file_path, K_RD, only_within
     dict_to_store = {chr_i: {} for chr_i in unique_chr}
     dict_to_store_region_idx = {chr_i: {} for chr_i in unique_chr}
     dict_to_store_dnase_and_nucleo_val = {chr_i: {} for chr_i in unique_chr}
-    val_col = 4 if K_RD else 3
+    val_col = int(K_RD) + 3 if K_RD != 3 else -2
     for item in df:
         try:
             if only_within and not with_dnase_and_nucleo:
@@ -65,9 +65,10 @@ def read_bed_file_and_store_pos_to_a_struct(bed_tsv_file_path, K_RD, only_within
                 dict_to_store_dnase_and_nucleo_val[chr_i][int(pos)] = [float(dnase_val), float(nucleo_val)]
             else:
                 chr_i, pos, val = item[0], item[1], item[val_col]
+
+            dict_to_store[chr_i][int(pos)] = val
         except Exception as e:
             pass
-        dict_to_store[chr_i][int(pos)] = val
     if only_within == False:
         if with_dnase_and_nucleo:
             return [dict_to_store, dict_to_store_dnase_and_nucleo_val]
@@ -139,10 +140,18 @@ def filter_d_length_to_generate_CpG_pairs(Chr_CpG_pos_and_methy_list, D_MAX, onl
 def prepare_config_file(CONFIG_FP):
     regions = ["ChromHMM", "Genomic_Regions", "Histone_Modification", "TFBS"]
     ltws = []
-    for K in [1]:
+    for K in [3]:
         for REGION in regions:
             intersection_dir = os.path.join("../data/K_region_intersect", REGION)
-            out_rd_corr_dir = os.path.join(intersection_dir, "K_Rd") if K == 1 else os.path.join(intersection_dir, "Methy_Rd")
+            if K == 1:
+                inter_name = "K_Rd"
+            elif K == 2:
+                inter_name = "f_Rd"
+            elif K == 0:
+                inter_name = "Methy_Rd"
+            else:
+                inter_name = "DNase_Rd"
+            out_rd_corr_dir = os.path.join(intersection_dir, inter_name)
             mkdir(out_rd_corr_dir)
             for file_name in os.listdir(intersection_dir):
                 if file_name.endswith(".bed"):
@@ -234,7 +243,7 @@ def wrapper_for_correlation_analysis(row):
     out_R_d_correlation_path = str(row[1])
     K_RD = int(row[2])
     print("%s\t%s\t%d" % (bed_tsv_file_path, out_R_d_correlation_path, K_RD))
-    calc_correlation(bed_tsv_file_path, out_R_d_correlation_path, D_MAX, is_inter_with_other_cpg, K_RD=K_RD, only_within=False, with_dnase_and_nucleo=True)
+    calc_correlation(bed_tsv_file_path, out_R_d_correlation_path, D_MAX, is_inter_with_other_cpg, K_RD=K_RD, only_within=False, with_dnase_and_nucleo=False)
 
 def call_for_correlation_analysis(CONFIG_FP):
     num_workers = _workers_count()
@@ -244,19 +253,93 @@ def call_for_correlation_analysis(CONFIG_FP):
     pool = mp.Pool(processes=num_workers)
     pool.map_async(wrapper_for_correlation_analysis, tups).get()
 
+
 def plot_local_regression_and_RD(max_d, fig_format="png"):
-    regions = ["Genomic_Regions", "Histone_Modification", "TFBS"]# "ChromHMM",
-    K_RD = [1]# , 0
+    regions = ["Genomic_Regions", "Histone_Modification", "ChromHMM", "TFBS"]  #"Genomic_Regions", "Histone_Modification", "ChromHMM", "TFBS"
+    K_RD = [3]  # , 0
+
     N_COL = 5
     cm = plt.get_cmap('gist_rainbow')
     FIG_DIR = os.path.join(BASE_DIR, "figures")
-    for km in K_RD:
-        for REGION in regions:
-            RD_DIRNAME= "K_Rd" if km == 1 else "Methy_Rd"
-            fig_dir = os.path.join(FIG_DIR, RD_DIRNAME)
-            mkdir(fig_dir)
 
-            out_rd_corr_dir = os.path.join("../data/K_region_intersect", REGION, RD_DIRNAME)
+    fig_dir = os.path.join(FIG_DIR, "Rd")
+    mkdir(fig_dir)
+    for REGION in regions:
+        fig_fp = os.path.join(fig_dir, "%s.%s" % (REGION, fig_format))
+        fig, axs = None, None
+        for km in K_RD:
+            if km == 1:
+                inter_name = "K_Rd"
+                color = "r"
+                c = "red"
+                label = "k"
+            elif km == 2:
+                inter_name = "f_Rd"
+                color = "g"
+                c = "green"
+                label = "f"
+            else:
+                inter_name = "Methy_Rd"
+                color = "b"
+                c = "blue"
+                label = "methy"
+
+            out_rd_corr_dir = os.path.join("../data/K_region_intersect", REGION, inter_name)
+            file_paths = [os.path.join(out_rd_corr_dir, "%s.bed" % file_name) for file_name in
+                          FILE_ORDERED_NAMES[REGION]]
+            file_labels = FILE_LABELS[REGION]
+            N_FILES = len(file_labels)
+            N_ROW = int(math.ceil((N_FILES) / N_COL))
+            if not fig:
+                fig, axs = plt.subplots(N_ROW, N_COL, figsize=(N_COL * EACH_SUB_FIG_SIZE, N_ROW * (EACH_SUB_FIG_SIZE - 1)))
+            for j in range(N_FILES):
+                row = j // N_COL
+                col = j % N_COL
+                if N_ROW == 1:
+                    ax = axs[col]
+                else:
+                    ax = axs[row][col]
+                file_path = file_paths[j]
+                RD_df = pd.read_csv(file_path, sep="\t", header=None).values
+                x = RD_df[:, 0]
+                y = RD_df[:, 1]
+                try:
+                    y2 = localreg(x, y, degree=2, kernel=tricube, width=100)
+                    sc = ax.scatter(x, y, s=8, label=label, color=c)
+                    ax.plot(x, y2, "w-", linewidth=2)
+                except np.linalg.LinAlgError as e:
+                    sns.regplot(x=x, y=y, ax=ax, scatter_kws={'s': 8, 'color': c}, line_kws ={'color':'white', "lw": 2})
+                ax.set_xticks(range(0, max_d + 1, 200))
+                ax.set_xlim(0, max_d)
+                ax.set_ylim(0, 1.0)
+                ax.set_title(file_labels[j], fontsize=16)
+                if km == 2 and j == 0:
+                    ax.legend()
+        plt.savefig(fig_fp, dpi=300)#, bbox_inches='tight', pad_inches=0.1
+
+
+
+def plot_local_regression_and_RD_with_DNase(max_d, fig_format="png"):
+    regions = ["Histone_Modification", "ChromHMM", "TFBS"]#"Genomic_Regions",
+    K_RD = [1]# 0, 1, 2
+    N_COL = 5
+    cm = plt.get_cmap('gist_rainbow')
+    FIG_DIR = os.path.join(BASE_DIR, "figures")
+    plt.rc('xtick', labelsize=12)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=12)  # fontsize of the tick labels
+
+    for REGION in regions:
+        fig_dir = os.path.join(FIG_DIR, "Rd")
+        mkdir(fig_dir)
+        for km in K_RD:
+            if km == 1:
+                inter_name = "K_Rd"
+            elif km == 2:
+                inter_name = "f_Rd"
+            else:
+                inter_name = "Methy_Rd"
+
+            out_rd_corr_dir = os.path.join("../data/K_region_intersect", REGION, inter_name)
             file_paths = [os.path.join(out_rd_corr_dir, "%s.bed" % file_name) for file_name in FILE_ORDERED_NAMES[REGION]]
             file_labels = FILE_LABELS[REGION]
             N_FILES = len(file_labels)
@@ -266,7 +349,7 @@ def plot_local_regression_and_RD(max_d, fig_format="png"):
             vmaxs = [0.15, 220]
             for dnase_nucleo in range(2):
                 fig_fp = os.path.join(fig_dir,  "%s_%s.%s" % (REGION, DNase_Nucleos[dnase_nucleo], fig_format))
-                fig, axs = plt.subplots(N_ROW, N_COL, figsize=(N_COL * EACH_SUB_FIG_SIZE, N_ROW * EACH_SUB_FIG_SIZE))
+                fig, axs = plt.subplots(N_ROW, N_COL, figsize=(N_COL * (EACH_SUB_FIG_SIZE - 1), N_ROW *  (EACH_SUB_FIG_SIZE - 1)))
                 for j in range(N_FILES):
                     row = j // N_COL
                     col = j % N_COL
@@ -287,7 +370,8 @@ def plot_local_regression_and_RD(max_d, fig_format="png"):
                         else:
                             sc = ax.scatter(x, y, s=8, c=z, label=file_labels[j], cmap=cm, vmin =vmins[dnase_nucleo], vmax =vmaxs[dnase_nucleo])
                             ax.plot(x, y2, "k-", linewidth=2)
-                        fig.colorbar(sc, ax=ax)
+                        if col == N_COL - 1:
+                            fig.colorbar(sc, ax=ax)
                     except np.linalg.LinAlgError as e:
                         sns.regplot(x=x, y=y, ax=ax, scatter_kws={'s':8, 'color': cm(1. * j / N_FILES)})#, line_kws ={'color':'black', "lw": 2}
                     ax.set_xticks(range(0, max_d + 1, 200))
@@ -296,8 +380,65 @@ def plot_local_regression_and_RD(max_d, fig_format="png"):
                     ax.set_title(file_labels[j], fontsize=18)
                 plt.savefig(fig_fp, dpi=300, bbox_inches='tight', pad_inches=0.1)
 
+def plot_local_regression_and_RD_separately(max_d, fig_format="png"):
+    regions = ["Genomic_Regions", "Histone_Modification", "ChromHMM", "TFBS"]#
+    K_RD = [3]# 0, 1, 2
+    N_COL = 5
+    cm = plt.get_cmap('gist_rainbow')
+    FIG_DIR = os.path.join(BASE_DIR, "figures")
+    plt.rc('xtick', labelsize=12)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=12)  # fontsize of the tick labels
+
+    for REGION in regions:
+        fig_dir = os.path.join(FIG_DIR, "Rd")
+        mkdir(fig_dir)
+        for km in K_RD:
+            if km == 1:
+                inter_name = "K_Rd"
+            elif km == 2:
+                inter_name = "f_Rd"
+            elif km == 3:
+                inter_name = "DNase_Rd"
+            else:
+                inter_name = "Methy_Rd"
+
+            out_rd_corr_dir = os.path.join("../data/K_region_intersect", REGION, inter_name)
+            file_paths = [os.path.join(out_rd_corr_dir, "%s.bed" % file_name) for file_name in FILE_ORDERED_NAMES[REGION]]
+            file_labels = FILE_LABELS[REGION]
+            N_FILES = len(file_labels)
+            N_ROW = int(math.ceil((N_FILES) / N_COL))
+
+            fig_fp = os.path.join(fig_dir,  "%s_%s.%s" % (REGION, inter_name, fig_format))
+            fig, axs = plt.subplots(N_ROW, N_COL, figsize=(N_COL * (EACH_SUB_FIG_SIZE - 1), N_ROW *  (EACH_SUB_FIG_SIZE - 1)))
+            for j in range(N_FILES):
+                row = j // N_COL
+                col = j % N_COL
+                if N_ROW == 1:
+                    ax = axs[col]
+                else:
+                    ax = axs[row][col]
+                file_path = file_paths[j]
+                RD_df = pd.read_csv(file_path, sep="\t", header=None).values
+                x = RD_df[:, 0]
+                y = RD_df[:, 1]
+                try:
+                    y2 = localreg(x, y, degree=2, kernel=tricube, width=100)
+                    if file_labels[j] == "Genome":
+                        ax.scatter(x, y, s=8, label=file_labels[j], color="blue")
+                        ax.plot(x, y2, "w-", linewidth=2)
+                    else:
+                        ax.scatter(x, y, s=8, label=file_labels[j], color=cm(1. * j / N_FILES))
+                        ax.plot(x, y2, "k-", linewidth=2)
+                except np.linalg.LinAlgError as e:
+                    sns.regplot(x=x, y=y, ax=ax, scatter_kws={'s':8, 'color': cm(1. * j / N_FILES)})#, line_kws ={'color':'black', "lw": 2}
+                ax.set_xticks(range(0, max_d + 1, 200))
+                ax.set_xlim(0, max_d)
+                ax.set_ylim(0, 1.0)
+                ax.set_title(file_labels[j], fontsize=18)
+            plt.savefig(fig_fp, dpi=300, bbox_inches='tight', pad_inches=0.1)
+
 if __name__ == "__main__":
-    # config_fp = os.path.join(data_dir, "diff_region_with_DNase_and_Nucleo.config")
+    config_fp = os.path.join(data_dir, "dnase_corr.config")
     # prepare_config_file(config_fp)
     # call_for_correlation_analysis(config_fp)
-    plot_local_regression_and_RD(D_MAX)
+    plot_local_regression_and_RD_separately(D_MAX, fig_format="svg")

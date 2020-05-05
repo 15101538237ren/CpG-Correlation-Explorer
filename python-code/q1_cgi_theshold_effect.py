@@ -10,9 +10,9 @@ sns.set(color_codes=True)
 data_dir = "../data"
 figure_dir = "../figures/Q1_CGI_threshold"
 EACH_SUB_FIG_SIZE = 5
-D_MAX = 5000
-RATIOS = ["06", "07", "08", "09", "10", "11", "12", "13"]
-RATIO_LABELS = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+D_MAX = 1000
+RATIOS = ["06", "07", "08", "09"]#, "10", "11", "12", "13"]
+RATIO_LABELS = [0.6, 0.7, 0.8, 0.9]#, 1.0, 1.1, 1.2, 1.3]
 
 def mkdir(dir_path):
     if not os.path.exists(dir_path):
@@ -32,20 +32,25 @@ def partition_bed_by_region_labels_and_generate_config_file(config_fp, K_RD= 1):
 
 def plot_local_regression_and_RD(fig_format="png"):
     K_RD = [1]# , 0
-    N_COL = 4
-    N_ROW = 2
+    N_COL = 1
+    N_ROW = 1
+    plt.rc('xtick', labelsize=12)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=12)  # fontsize of the tick labels
     cm = plt.get_cmap('gist_rainbow')
     mkdir(figure_dir)
     for km in K_RD:
         correlation_type = '' if km else '-methy'
-        fig, axs = plt.subplots(N_ROW, N_COL, figsize=(N_COL * EACH_SUB_FIG_SIZE, N_ROW * EACH_SUB_FIG_SIZE))
+        fig, ax = plt.subplots(N_ROW, N_COL, figsize=((N_COL * EACH_SUB_FIG_SIZE), N_ROW * EACH_SUB_FIG_SIZE))
         fig_fp = os.path.join(figure_dir, "CGI_RATIO_FROM-06-13-%d.%s" % (D_MAX, fig_format))
         for rid, ratio in enumerate(RATIOS):
             correlation_fp = os.path.join(data_dir, "CGI_identified_with_different_thereshold", "CGI_%s_K_intersected" % ratio + correlation_type +"-only-within-Rd.bed")
-            file_label = "Obs/Expect " + str(RATIO_LABELS[rid])
-            row = rid // N_COL
-            col = rid % N_COL
-            ax = axs[row][col]
+            file_label = "Obs/Exp>" + str(RATIO_LABELS[rid])
+            # row = rid // N_COL
+            # col = rid % N_COL
+            # if N_ROW == 1:
+            #     ax = axs[0]
+            # else:
+            #     ax = axs[row][0]
             RD_df = pd.read_csv(correlation_fp, sep="\t", header=None).values
             x = RD_df[:, 0]
             y = RD_df[:, 1]
@@ -53,14 +58,20 @@ def plot_local_regression_and_RD(fig_format="png"):
             try:
                 y2 = localreg(x, y, degree=2, kernel=tricube, width=100)
                 ax.scatter(x, y, s=8, color=color, label=file_label)
-                ax.plot(x, y2, "k-", linewidth=2)
+                ax.plot(x, y2, color='black', linestyle = 'solid', linewidth=2)
             except np.linalg.LinAlgError as e:
                 sns.regplot(x=x, y=y, ax=ax, scatter_kws={'s':8, 'color': color})#, line_kws ={'color':'black', "lw": 2}
-            ax.set_xticks(range(0, D_MAX + 1, 1000))
+            ax.set_xticks(range(0, D_MAX + 1, 200))
             ax.set_xlim(0, D_MAX)
             ax.set_ylim(0, 1.0)
-            ax.set_title(file_label, fontsize=14)
-        plt.savefig(fig_fp, dpi=300, bbox_inches='tight', pad_inches=0.1)
+            ax.set_xlabel("Genomic Distance(bp)", fontsize=18, fontweight='bold')
+            ax.set_ylabel("Pearson Correlation", fontsize=18, fontweight='bold')
+            # box = ax.get_position()
+            # ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+            ax.legend(loc='best')#, bbox_to_anchor=(1, 0.5))
+
+        # ax.set_title(file_label, fontsize=14)
+        plt.savefig(fig_fp, dpi=300)
 
 def plot_local_regression_and_RD_within_vs_across(fig_format="png"):
     K_RD = [1]# , 0
@@ -201,7 +212,7 @@ def plot_heatmap_of_k_methy_for_diff_CGI_threshold(fig_format="png"):
     plt.savefig(fig_fp, dpi=300, bbox_inches='tight', pad_inches=0.1)
 
 if __name__ == "__main__":
-    plot_local_regression_and_RD()
+    plot_local_regression_and_RD(fig_format="svg")
     # plot_heatmap_of_k_methy_for_diff_CGI_threshold()
     # config_fp = os.path.join(data_dir, "cgi_threshold-only-within.config")
     # partition_bed_by_region_labels_and_generate_config_file(config_fp)

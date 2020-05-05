@@ -12,8 +12,8 @@ data_dir = "../data"
 figure_dir = "../figures/corr_around_TADs"
 EACH_SUB_FIG_SIZE = 5
 nchr = 22
-window_sz = 2000
-min_nCpG = 5  # number of the minimal CpGs number for the regions in TAD boundaries.
+window_sz = 150
+min_nCpG = 3  # number of the minimal CpGs number for the regions in TAD boundaries.
 
 
 def mkdir(dir_path):
@@ -200,7 +200,7 @@ def correlation_between_k_in_TAD_bounaries_and_k_in_non_TAD_large_slide_wd(TAD_f
     locis = {"chr%d" % chr_i: [] for chr_i in range(1, nchr + 1)}
     Ks = {"chr%d" % chr_i: [] for chr_i in range(1, nchr + 1)}
 
-    n_samples_per_chromosome_for_control = 100  # number of regions as comparison
+    n_samples_per_chromosome_for_control = 1  # number of regions as comparison
 
     for item in non_tad_df:
         chr_i, pos, val = item[0], item[1], item[4]
@@ -230,15 +230,16 @@ def correlation_between_k_in_TAD_bounaries_and_k_in_non_TAD_large_slide_wd(TAD_f
 
                 ks1 = [items_1[ii][4] for ii in range(n_cpg1)]
                 ks2 = [items_2[ii][4] for ii in range(n_cpg2)]
-                fixed_ks = ks2 if n_cpg1 > n_cpg2 else ks1
+                fixed_ks = np.array(ks2) if n_cpg1 > n_cpg2 else np.array(ks1)
                 iter_ks = ks1 if n_cpg1 > n_cpg2 else ks2
+                ix = np.random.randint(0, n_sites_avail_for_iter)
 
-                for ix in range(n_sites_avail_for_iter):
-                    iks = iter_ks[ix: min_int_ncpg + ix]
-                    ntc = abs(
+                #for ix in range(n_sites_avail_for_iter):
+                iks = np.array(iter_ks[ix: len(fixed_ks) + ix])
+                corr_in_tads = abs(
                         np.corrcoef(fixed_ks, iks)[0][1])
-                    corrs.append(ntc)
-                corr_in_tads = np.mean(np.array(corrs))
+                #corrs.append(ntc)
+                #corr_in_tads = np.mean(np.array(corrs))
 
 
                 corr_samples = []
